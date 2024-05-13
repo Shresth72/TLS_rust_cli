@@ -1,8 +1,7 @@
-#![allow(unused_imports)]
+// #![allow(unused)]
 
 use clap::{Parser, Subcommand};
 use std::{ops::RangeInclusive, path::Path, time::Duration};
-use tls::tls_connect;
 use tokio::runtime;
 
 mod common;
@@ -46,6 +45,9 @@ enum Commands {
 
         #[arg(long, value_parser = valid_path)]
         key: Option<String>,
+
+        #[arg(short, long)]
+        exec: Option<String>,
     },
 }
 
@@ -84,49 +86,63 @@ fn main() {
     let runtime = runtime::Runtime::new().unwrap();
 
     match &cli.command {
-        Commands::Connect { host, port, ca } => {
+        Commands::Connect { host, port, .. } => {
             println!("connect to {}:{}", host, port);
 
             //stream::client().await.unwrap();
             runtime.block_on(async {
                 tokio::select! {
-                    res = tls::tls_connect(host, port, ca) => {
-                        if let Err(e) = res {
-                            println!("connect failed: {}", e.to_string());
-                        }
-                    }
 
-                    //_ = stream::client() => {}
-                    //_ = tls_connect(host, port) => {}
+                    // ========= TLS CONNECT ========== //
+                    // res = tls::tls_connect(host, port, ca) => {
+                    //     if let Err(e) = res {
+                    //         println!("connect failed: {}", e.to_string());
+                    //     }
+                    // }
+
+
+                    // ========= TCP CONNECT ========== //
+                    _ = stream::client(host, port) => {}
+
+
+                    // ========= PROCESS SHUTDOWN ========= //
                     _ = tokio::signal::ctrl_c() => {}
                 }
             });
         }
         Commands::Serve {
-            bind_host,
-            port,
-            ca,
-            cert,
-            key,
+            bind_host, port, ..
         } => {
             println!("bind to {}:{}", bind_host, port);
 
             //stream::server().await.unwrap();
             runtime.block_on(async {
                 tokio::select! {
-                    res = tls::tls_listen(bind_host, port, ca, cert.clone().expect("cert is required"), key.clone().expect("key is required")) => {
-                        if let Err(e) = res {
-                            println!("listen failed: {}", e.to_string());
-                        }
-                    }
 
-                    //_ = stream::server() => {}
+                    // ========= TLS SERVE ========== //
+                    // res = tls::tls_listen(bind_host, port, ca, cert.clone().expect("cert is required"), key.clone().expect("key is required")) => {
+                    //    if let Err(e) = res {
+                    //        println!("listen failed: {}", e.to_string());
+                    //    }
+                    // }
+
+
+                    // ========= TCP SERVE ========== //
+                    _ = stream::server(bind_host, port) => {}
+
+
+                    // ======= SERVE TO SHELL ======= //
+                    //_ = stream::serve_exec(bind_host, port, exec.clone()).expect("exec is required") => {}
+
+
+                    // ========= PROCESS SHUTDOWN ========= //
                     _ = tokio::signal::ctrl_c() => {}
                 }
             });
         }
     }
 
+    // ========= TLS CLI CMDs ========== //
     // Client Connect Cmd
     // cargo run connect google.com --port 443
 
